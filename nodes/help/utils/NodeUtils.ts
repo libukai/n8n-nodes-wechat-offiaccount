@@ -25,11 +25,17 @@ class NodeUtils {
 		}
 		const buffer = await this.helpers.getBinaryDataBuffer(index, inputDataFieldName);
 
+		console.log('buildUploadFileData:', {
+			filename: binaryData.fileName,
+			fileSize: binaryData.fileSize,
+			mimeType: binaryData.mimeType,
+			bufferLength: buffer.length
+		});
+
 		return {
 			value: buffer,
 			options: {
 				filename: binaryData.fileName,
-				filelength: binaryData.fileSize,
 				contentType: binaryData.mimeType,
 			},
 		};
