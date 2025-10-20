@@ -15,7 +15,6 @@ class RequestUtils {
 		// 每次调用都获取新 token（不依赖凭证系统）
 		let accessToken = '';
 		if (!clearAccessToken) {
-			console.log('RequestUtils: 获取新 access_token');
 			const tokenRes = (await this.helpers.httpRequest({
 				method: 'POST',
 				url: `https://${credentials.baseUrl}/cgi-bin/stable_token`,
@@ -37,7 +36,6 @@ class RequestUtils {
 			}
 
 			accessToken = tokenRes.access_token;
-			console.log('RequestUtils: 获取到 token:', accessToken.substring(0, 20) + '...');
 		}
 
 		// 手动添加 token 到请求参数
