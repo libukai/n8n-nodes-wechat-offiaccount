@@ -1,0 +1,107 @@
+meta {
+  name: Generate Short URL
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/shorten/gen?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "long_data": "https://example.com/very/long/url/path?with=many&query=parameters",
+    "expire_seconds": 2592000
+  }
+}
+
+docs {
+  # Generate Short Key (URL Shortener)
+
+  Convert long data (typically URLs) to short keys for easier sharing.
+
+  ## Endpoint
+  `POST /cgi-bin/shorten/gen`
+
+  ## Parameters
+  - `long_data` (required): Long data to shorten (max 4KB)
+  - `expire_seconds` (optional): Expiration time (max 2,592,000 = 30 days, default)
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok",
+    "short_key": "A1bC2dE3"
+  }
+  ```
+
+  ## Fetching Original Data
+  Use the short key to retrieve original data:
+  ```
+  POST /cgi-bin/shorten/fetch
+  {
+    "short_key": "A1bC2dE3"
+  }
+  ```
+
+  ## Use Cases
+  - Shorten long URLs for messages
+  - Create shareable short links
+  - Track click analytics via short keys
+  - Reduce message character count
+
+  ## Notes
+  - Max 4KB for long_data
+  - Default expiration: 30 days
+  - Short keys can be reused via fetch API
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("errcode is 0", function() {
+    expect(res.body.errcode).to.equal(0);
+  });
+
+  test("Short key exists", function() {
+    expect(res.body.short_key).to.exist;
+    expect(res.body.short_key).to.be.a('string');
+  });
+}
+
+script:post-response {
+  if (res.body.short_key) {
+    console.log('✓ Short key generated');
+    console.log('Short key:', res.body.short_key);
+    bru.setVar('lastShortKey', res.body.short_key);
+  } else {
+    console.error('✗ Failed to generate short key');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

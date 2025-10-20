@@ -1,0 +1,165 @@
+meta {
+  name: Create Custom Menu
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/menu/create?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "button": [
+      {
+        "type": "click",
+        "name": "今日歌曲",
+        "key": "V1001_TODAY_MUSIC"
+      },
+      {
+        "name": "菜单",
+        "sub_button": [
+          {
+            "type": "view",
+            "name": "搜索",
+            "url": "https://www.soso.com/"
+          },
+          {
+            "type": "miniprogram",
+            "name": "小程序",
+            "url": "http://mp.weixin.qq.com",
+            "appid": "wx1234567890",
+            "pagepath": "pages/index/index"
+          },
+          {
+            "type": "click",
+            "name": "赞一下我们",
+            "key": "V1001_GOOD"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+docs {
+  # Create Custom Menu
+
+  Create or update the custom menu for the Official Account.
+
+  ## Endpoint
+  `POST /cgi-bin/menu/create`
+
+  ## Menu Structure
+  - Max 3 first-level buttons
+  - Each first-level button can have max 5 sub-buttons
+  - Button names: 1-4 characters (first-level), 1-8 characters (sub-level)
+
+  ## Button Types
+
+  ### 1. click
+  Click event with custom key
+  ```json
+  {
+    "type": "click",
+    "name": "按钮名称",
+    "key": "CUSTOM_KEY"
+  }
+  ```
+
+  ### 2. view
+  Open URL
+  ```json
+  {
+    "type": "view",
+    "name": "按钮名称",
+    "url": "https://example.com"
+  }
+  ```
+
+  ### 3. miniprogram
+  Open mini-program
+  ```json
+  {
+    "type": "miniprogram",
+    "name": "按钮名称",
+    "url": "http://mp.weixin.qq.com",
+    "appid": "wx1234567890",
+    "pagepath": "pages/index/index"
+  }
+  ```
+
+  ### 4. scancode_push
+  Scan barcode (push event)
+
+  ### 5. scancode_waitmsg
+  Scan barcode (wait for message)
+
+  ### 6. pic_sysphoto
+  Take photo with system camera
+
+  ### 7. pic_photo_or_album
+  Choose photo from camera or album
+
+  ### 8. pic_weixin
+  Choose from WeChat album
+
+  ### 9. location_select
+  Select location
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Notes
+  - Menu updates take effect immediately
+  - Old menu is completely replaced
+  - Sub-button parent cannot have type/key/url
+  - Events 3-8 require WeChat iPhone 5.4.1+ or Android 5.4+
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("errcode is 0", function() {
+    expect(res.body.errcode).to.equal(0);
+  });
+}
+
+script:post-response {
+  if (res.body.errcode === 0) {
+    console.log('✓ Menu created successfully');
+  } else {
+    console.error('✗ Failed to create menu');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

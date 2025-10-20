@@ -1,0 +1,117 @@
+meta {
+  name: Get Published List
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/freepublish/batchget?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "offset": 0,
+    "count": 20,
+    "no_content": 0
+  }
+}
+
+docs {
+  # Get Published Articles List
+
+  Retrieve a paginated list of successfully published articles.
+
+  ## Endpoint
+  `POST /cgi-bin/freepublish/batchget`
+
+  ## Parameters
+  - `offset` (required): Starting position (0 = first)
+  - `count` (required): Number to return (1-20)
+  - `no_content` (optional): Exclude content (0=include, 1=exclude)
+
+  ## Response
+  ```json
+  {
+    "total_count": 2,
+    "item_count": 2,
+    "item": [{
+      "article_id": "ARTICLE_ID",
+      "content": {
+        "news_item": [{
+          "title": "Article Title",
+          "author": "Author",
+          "digest": "Summary",
+          "content": "HTML content",
+          "content_source_url": "URL",
+          "thumb_media_id": "THUMB_ID",
+          "show_cover_pic": 1,
+          "url": "Published Article URL",
+          "thumb_url": "Cover URL",
+          "need_open_comment": 0,
+          "only_fans_can_comment": 0,
+          "comment_status": 1
+        }]
+      },
+      "update_time": 1234567890
+    }]
+  }
+  ```
+
+  ## Pagination
+  - Returns up to 20 articles per request
+  - Use offset for pagination
+
+  ## Notes
+  - Only shows successfully published articles
+  - Includes public article URLs
+  - Can use article_id for statistics
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has total_count", function() {
+    expect(res.body.total_count).to.be.a('number');
+  });
+
+  test("Has item array", function() {
+    expect(res.body.item).to.be.an('array');
+  });
+}
+
+script:post-response {
+  console.log('✓ Published list retrieved');
+  console.log('Total published:', res.body.total_count);
+  console.log('Returned:', res.body.item_count);
+
+  if (res.body.item && res.body.item.length > 0) {
+    console.log('First article ID:', res.body.item[0].article_id);
+    if (res.body.item[0].content && res.body.item[0].content.news_item) {
+      console.log('Article URL:', res.body.item[0].content.news_item[0].url);
+    }
+  }
+}

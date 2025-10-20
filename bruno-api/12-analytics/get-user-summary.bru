@@ -1,0 +1,120 @@
+meta {
+  name: Get User Summary
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/datacube/getusersummary?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-07"
+  }
+}
+
+docs {
+  # Get User Summary Statistics
+
+  Retrieve daily user growth statistics for a specified date range.
+
+  ## Endpoint
+  `POST /datacube/getusersummary`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 7 days
+  - Both dates must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "user_source": 0,
+      "new_user": 100,
+      "cancel_user": 10
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Date of statistics
+  - `user_source`: Channel source (0-30+, see docs)
+  - `new_user`: New followers count
+  - `cancel_user`: Unfollowed count
+
+  ## User Source Values
+  - 0: Others
+  - 1: QR code
+  - 17: Business card share
+  - 30: Scan QR code
+  - And more (see official docs)
+
+  ## Notes
+  - Data updates daily
+  - Previous day's data available after midnight
+  - Use for growth trend analysis
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have required fields", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('ref_date');
+      expect(res.body.list[0]).to.have.property('new_user');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ User summary retrieved');
+    console.log('Records:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      console.log('First date:', res.body.list[0].ref_date);
+      console.log('New users:', res.body.list[0].new_user);
+      console.log('Cancelled:', res.body.list[0].cancel_user);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

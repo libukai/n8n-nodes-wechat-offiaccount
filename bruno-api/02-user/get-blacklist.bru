@@ -1,0 +1,71 @@
+meta {
+  name: Get Blacklist
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/tags/members/getblacklist?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_openid": ""
+  }
+}
+
+docs {
+  # Get Blacklist
+
+  Retrieve the blacklist of blocked users.
+
+  ## Endpoint
+  `POST /cgi-bin/tags/members/getblacklist`
+
+  ## Parameters
+  - `access_token` (required): Access token (query parameter)
+  - `begin_openid` (optional): Start from this OpenID for pagination
+
+  ## Response Fields
+  - `total`: Total number of blacklisted users
+  - `count`: Number returned in this response
+  - `data.openid`: Array of blacklisted OpenIDs
+  - `next_openid`: Next pagination cursor
+
+  ## Pagination
+  - Returns up to 10,000 OpenIDs per request
+  - Use `next_openid` for subsequent pages
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has total", function() {
+    expect(res.body.total).to.be.a('number');
+  });
+}

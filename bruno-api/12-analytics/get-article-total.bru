@@ -1,0 +1,135 @@
+meta {
+  name: Get Article Total
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/datacube/getarticletotal?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-01"
+  }
+}
+
+docs {
+  # Get Article Total Statistics
+
+  Retrieve cumulative article statistics for all articles published on a specific date.
+
+  ## Endpoint
+  `POST /datacube/getarticletotal`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 1 day (begin_date must equal end_date)
+  - Date must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "msgid": "123456789",
+      "title": "Article Title",
+      "details": [{
+        "stat_date": "2024-01-02",
+        "target_user": 1000,
+        "int_page_read_user": 500,
+        "int_page_read_count": 800,
+        "ori_page_read_user": 400,
+        "ori_page_read_count": 600,
+        "share_user": 100,
+        "share_count": 150,
+        "add_to_fav_user": 50,
+        "add_to_fav_count": 60,
+        "int_page_from_session_read_user": 300,
+        "int_page_from_session_read_count": 450,
+        "int_page_from_hist_msg_read_user": 200,
+        "int_page_from_hist_msg_read_count": 300
+      }]
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Publication date
+  - `msgid`: Message ID
+  - `title`: Article title
+  - `details`: Array of daily statistics
+    - `stat_date`: Statistics date
+    - `target_user`: Target audience size
+    - `int_page_read_user/count`: Internal page reads
+    - `ori_page_read_user/count`: Original page reads
+    - `share_user/count`: Share statistics
+    - `add_to_fav_user/count`: Favorite statistics
+    - `int_page_from_session_read_*`: Reads from chat sessions
+    - `int_page_from_hist_msg_read_*`: Reads from history
+
+  ## Notes
+  - Shows cumulative stats over time
+  - Details array shows day-by-day breakdown
+  - Use for long-term content performance
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have details", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('details');
+      expect(res.body.list[0].details).to.be.an('array');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ Article total statistics retrieved');
+    console.log('Articles:', res.body.list.length);
+    if (res.body.list.length > 0 && res.body.list[0].details) {
+      console.log('Title:', res.body.list[0].title);
+      console.log('Stats days:', res.body.list[0].details.length);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

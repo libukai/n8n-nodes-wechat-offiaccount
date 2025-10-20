@@ -1,0 +1,108 @@
+meta {
+  name: Get User Cumulative
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/datacube/getusercumulate?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-07"
+  }
+}
+
+docs {
+  # Get Cumulative User Statistics
+
+  Retrieve cumulative user count statistics for a specified date range.
+
+  ## Endpoint
+  `POST /datacube/getusercumulate`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 7 days
+  - Both dates must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "cumulate_user": 5000
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Date of statistics
+  - `cumulate_user`: Total follower count on that date
+
+  ## Notes
+  - Shows net follower count (new - cancelled)
+  - Data updates daily
+  - Use for overall growth tracking
+  - Complements getusersummary (which shows daily changes)
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have cumulate_user", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('cumulate_user');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ Cumulative user data retrieved');
+    console.log('Records:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      console.log('Date:', res.body.list[0].ref_date);
+      console.log('Total followers:', res.body.list[0].cumulate_user);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

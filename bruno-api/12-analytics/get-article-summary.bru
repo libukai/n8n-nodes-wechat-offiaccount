@@ -1,0 +1,127 @@
+meta {
+  name: Get Article Summary
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/datacube/getarticlesummary?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-01"
+  }
+}
+
+docs {
+  # Get Article Summary Statistics
+
+  Retrieve article publishing statistics for a specified date range.
+
+  ## Endpoint
+  `POST /datacube/getarticlesummary`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 1 day (begin_date must equal end_date)
+  - Date must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "msgid": "123456789",
+      "title": "Article Title",
+      "int_page_read_user": 100,
+      "int_page_read_count": 150,
+      "ori_page_read_user": 80,
+      "ori_page_read_count": 120,
+      "share_user": 30,
+      "share_count": 40,
+      "add_to_fav_user": 20,
+      "add_to_fav_count": 25
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Statistics date
+  - `msgid`: Message ID
+  - `title`: Article title
+  - `int_page_read_user`: Internal page unique readers
+  - `int_page_read_count`: Internal page total reads
+  - `ori_page_read_user`: Original page unique readers
+  - `ori_page_read_count`: Original page total reads
+  - `share_user`: Users who shared
+  - `share_count`: Total shares
+  - `add_to_fav_user`: Users who favorited
+  - `add_to_fav_count`: Total favorites
+
+  ## Notes
+  - Only shows articles published on specified date
+  - Data available next day after publication
+  - Use for content performance analysis
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have required fields", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('msgid');
+      expect(res.body.list[0]).to.have.property('title');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ Article summary retrieved');
+    console.log('Articles:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      console.log('Title:', res.body.list[0].title);
+      console.log('Reads:', res.body.list[0].int_page_read_count);
+      console.log('Shares:', res.body.list[0].share_count);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

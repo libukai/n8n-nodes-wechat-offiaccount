@@ -1,0 +1,114 @@
+meta {
+  name: Get Upstream Message Hour
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/datacube/getupstreammsghour?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-01"
+  }
+}
+
+docs {
+  # Get Upstream Message Hourly Statistics
+
+  Retrieve hourly breakdown of messages sent from users to the official account.
+
+  ## Endpoint
+  `POST /datacube/getupstreammsghour`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 1 day (begin_date must equal end_date)
+  - Date must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "ref_hour": 0,
+      "msg_type": 1,
+      "msg_user": 10,
+      "msg_count": 15
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Statistics date
+  - `ref_hour`: Hour of day (0-23)
+  - `msg_type`: Message type (1-7, see getupstreammsg docs)
+  - `msg_user`: Unique users who sent messages in that hour
+  - `msg_count`: Total messages sent in that hour
+
+  ## Notes
+  - Provides hourly granularity for message patterns
+  - Use to identify peak engagement hours
+  - Helps optimize message sending times
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have ref_hour", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('ref_hour');
+      expect(res.body.list[0]).to.have.property('msg_count');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ Hourly message statistics retrieved');
+    console.log('Records:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      console.log('Hour:', res.body.list[0].ref_hour + ':00');
+      console.log('Messages:', res.body.list[0].msg_count);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

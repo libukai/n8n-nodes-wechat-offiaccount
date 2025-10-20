@@ -1,0 +1,99 @@
+meta {
+  name: Get Permanent Material
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/cgi-bin/material/get_material?access_token={{accessToken}}&media_id=MEDIA_ID_HERE
+  body: none
+  auth: none
+}
+
+params:query {
+  access_token: {{accessToken}}
+  media_id: MEDIA_ID_HERE
+}
+
+docs {
+  # Get Permanent Material
+
+  Download permanent media by media_id.
+
+  ## Endpoint
+  `GET /cgi-bin/material/get_material`
+
+  ## Parameters
+  - `access_token` (required): Access token
+  - `media_id` (required): Permanent media ID
+
+  ## Response
+  - For image/voice/video: Binary file data
+  - For news: JSON object with article content
+
+  ## News Response Format
+  ```json
+  {
+    "news_item": [{
+      "title": "Article Title",
+      "author": "Author",
+      "digest": "Summary",
+      "content": "HTML content",
+      "content_source_url": "Original URL",
+      "thumb_media_id": "Cover image ID",
+      "show_cover_pic": 1,
+      "url": "Article URL",
+      "thumb_url": "Cover URL",
+      "need_open_comment": 0,
+      "only_fans_can_comment": 0
+    }]
+  }
+  ```
+
+  ## Notes
+  - Response is binary for media files, JSON for news
+  - Check Content-Type header for file type
+  - News articles return structured JSON
+  - Use media_id from upload or list response
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}
+
+script:post-response {
+  console.log('✓ Material retrieved');
+  console.log('Content-Type:', res.headers['content-type']);
+
+  if (res.headers['content-type'] && res.headers['content-type'].includes('application/json')) {
+    console.log('Response type: News article (JSON)');
+    if (res.body.news_item) {
+      console.log('Articles count:', res.body.news_item.length);
+    }
+  } else {
+    console.log('Response type: Binary file');
+  }
+}

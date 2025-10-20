@@ -1,0 +1,61 @@
+meta {
+  name: Get All Tags
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/cgi-bin/tags/get?access_token={{accessToken}}
+  body: none
+  auth: none
+}
+
+docs {
+  # Get All Tags
+
+  Retrieve all tags created for the Official Account.
+
+  ## Endpoint
+  `GET /cgi-bin/tags/get`
+
+  ## Response
+  ```json
+  {
+    "tags": [
+      {"id": 1, "name": "VIP", "count": 5},
+      {"id": 2, "name": "新用户", "count": 10}
+    ]
+  }
+  ```
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Tags array exists", function() {
+    expect(res.body.tags).to.be.an('array');
+  });
+}

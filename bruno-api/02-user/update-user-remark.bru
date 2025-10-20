@@ -1,0 +1,81 @@
+meta {
+  name: Update User Remark
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/user/info/updateremark?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "openid": "{{testOpenId}}",
+    "remark": "Test Remark"
+  }
+}
+
+docs {
+  # Set User Remark
+
+  Set a custom remark/nickname for a specific user.
+
+  ## Endpoint
+  `POST /cgi-bin/user/info/updateremark`
+
+  ## Parameters
+  - `access_token` (required): Access token (query parameter)
+  - `openid` (required): User's OpenID
+  - `remark` (required): Custom remark (max 30 bytes)
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Notes
+  - Remark is visible only to admins
+  - Max length: 30 bytes (approximately 10 Chinese characters)
+  - Useful for internal user identification
+  - Remark appears in user info API response
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("errcode is 0", function() {
+    expect(res.body.errcode).to.equal(0);
+  });
+
+  test("errmsg is ok", function() {
+    expect(res.body.errmsg).to.equal('ok');
+  });
+}

@@ -1,0 +1,108 @@
+meta {
+  name: Get User List
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/cgi-bin/user/get?access_token={{accessToken}}&next_openid=
+  body: none
+  auth: none
+}
+
+params:query {
+  access_token: {{accessToken}}
+  next_openid:
+  ~: ~
+}
+
+docs {
+  # Get Followers List
+
+  Retrieve a paginated list of users who follow the Official Account.
+
+  ## Endpoint
+  `GET /cgi-bin/user/get`
+
+  ## Parameters
+  - `access_token` (required): Access token
+  - `next_openid` (optional): Pull from this OpenID for pagination (leave empty for first page)
+
+  ## Response Fields
+  - `total`: Total number of followers
+  - `count`: Number of OpenIDs in current response
+  - `data.openid`: Array of OpenIDs
+  - `next_openid`: Next pagination cursor (empty string = last page)
+
+  ## Pagination
+  - Returns up to 10,000 OpenIDs per request
+  - Use `next_openid` from response for subsequent requests
+  - Continue until `next_openid` is empty
+
+  ## Example Response
+  ```json
+  {
+    "total": 2,
+    "count": 2,
+    "data": {
+      "openid": ["oABC123", "oXYZ789"]
+    },
+    "next_openid": "oXYZ789"
+  }
+  ```
+
+  ## Notes
+  - Returns only OpenIDs, use batch get user info for detailed data
+  - Suitable for syncing full follower list
+  - Consider rate limits when processing large lists
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has total count", function() {
+    expect(res.body.total).to.be.a('number');
+  });
+
+  test("Response has count", function() {
+    expect(res.body.count).to.be.a('number');
+  });
+}
+
+script:post-response {
+  if (res.body.errcode) {
+    console.error('✗ Error:', res.body.errcode, res.body.errmsg);
+  } else {
+    console.log('✓ Follower list retrieved');
+    console.log('Total followers:', res.body.total);
+    console.log('Returned in this page:', res.body.count);
+    console.log('Next OpenID:', res.body.next_openid || '(end of list)');
+
+    if (res.body.data && res.body.data.openid) {
+      console.log('First few OpenIDs:', res.body.data.openid.slice(0, 5));
+    }
+  }
+}

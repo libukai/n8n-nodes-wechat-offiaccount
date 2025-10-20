@@ -1,0 +1,71 @@
+headers {
+  Content-Type: application/json
+  Accept: application/json
+}
+
+docs {
+  # WeChat Official Account API Collection
+
+  Complete Bruno API collection for WeChat Official Account Platform (微信公众号).
+
+  ## Getting Started
+
+  1. **Select Environment**: Choose `test` or `production` from Bruno's environment dropdown
+  2. **Configure Credentials**:
+     - For production: Copy `environments/production.example.bru` to `environments/production.bru` and add your real credentials
+     - For test: Use the pre-configured test environment
+  3. **Run Your First Request**: Start with `1-auth/get-access-token.bru` to verify your setup
+
+  ## Available Modules
+
+  - **1-auth**: Access token management (automatic token refresh in most requests)
+  - **2-user**: User management (info, list, remarks, blacklist)
+  - **3-user-tag**: User tagging system (create, assign, query tags)
+  - **4-media**: Media/material management (upload, download, temporary/permanent)
+  - **5-template**: Template message sending
+  - **6-menu**: Custom menu creation and management
+  - **7-comment**: Article comment management
+  - **8-draft**: Draft article management
+  - **9-publish**: Article publishing workflow
+  - **10-sign**: Message encryption/decryption utilities
+  - **11-other**: QR code generation, URL shortening
+
+  ## Authentication
+
+  Most requests automatically obtain a fresh `access_token` via the `stable_token` API in pre-request scripts.
+  The token is valid for 7200 seconds (2 hours) but we fetch a fresh one for each request to avoid expiration issues.
+
+  ### Token Flow:
+  1. Pre-request script calls `/cgi-bin/stable_token` with appId + appSecret
+  2. Response contains `access_token`
+  3. Token is set as `{{accessToken}}` variable
+  4. Main request uses token in query parameter or URL
+
+  ## Common Variables
+
+  - `{{baseUrl}}`: API base URL (https://wxpublic.10k.xyz or https://api.weixin.qq.com)
+  - `{{appId}}`: Your WeChat Official Account AppID
+  - `{{appSecret}}`: Your AppSecret (stored in vars:secret for production)
+  - `{{accessToken}}`: Auto-generated access token (refreshed per request)
+  - `{{testOpenId}}`: Test user OpenID for development
+
+  ## Rate Limiting
+
+  - Access token: Can be called once per second
+  - Template messages: 100,000 daily (increases with follower count)
+  - Most other APIs: Follow WeChat's official rate limits
+  - Message response timeout: 5 seconds (3 retries)
+
+  ## Important Notes
+
+  - **Base URL**: This collection uses `https://wxpublic.10k.xyz` as proxy server
+  - **Message Encryption**: Enable in WeChat backend if needed (AES-256-CBC)
+  - **Response Time**: Webhook replies must return within 5 seconds
+  - **Error Handling**: Check `errcode` field (0 = success)
+
+  ## Links
+
+  - **Official Documentation**: https://developers.weixin.qq.com/doc/offiaccount/Getting_Started/Overview.html
+  - **Project Repository**: n8n-nodes-wechat-offiaccount
+  - **n8n Community Node**: For workflow automation integration
+}

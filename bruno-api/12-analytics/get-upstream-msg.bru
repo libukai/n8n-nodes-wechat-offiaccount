@@ -1,0 +1,123 @@
+meta {
+  name: Get Upstream Message
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/datacube/getupstreammsg?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-07"
+  }
+}
+
+docs {
+  # Get Upstream Message Statistics
+
+  Retrieve statistics about messages sent from users to the official account.
+
+  ## Endpoint
+  `POST /datacube/getupstreammsg`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 7 days
+  - Date must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "msg_type": 1,
+      "msg_user": 100,
+      "msg_count": 150
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Statistics date
+  - `msg_type`: Message type (1-7)
+  - `msg_user`: Unique users who sent messages
+  - `msg_count`: Total messages sent
+
+  ## Message Type Values
+  - 1: Text
+  - 2: Image
+  - 3: Voice
+  - 4: Video
+  - 5: Link
+  - 6: Location
+  - 7: Other
+
+  ## Notes
+  - Shows user engagement through messages
+  - Use to understand user interaction patterns
+  - Complements downstream message stats
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have msg_type", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('msg_type');
+      expect(res.body.list[0]).to.have.property('msg_count');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ Upstream message statistics retrieved');
+    console.log('Records:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      console.log('Date:', res.body.list[0].ref_date);
+      console.log('Type:', res.body.list[0].msg_type);
+      console.log('Messages:', res.body.list[0].msg_count);
+      console.log('Users:', res.body.list[0].msg_user);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

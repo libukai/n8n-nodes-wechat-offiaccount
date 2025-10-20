@@ -1,0 +1,95 @@
+meta {
+  name: Delete Reply
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/comment/reply/delete?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "msg_data_id": 123456789,
+    "index": 0,
+    "user_comment_id": 1
+  }
+}
+
+docs {
+  # Delete Reply
+
+  Delete the official account's reply to a comment.
+
+  ## Endpoint
+  `POST /cgi-bin/comment/reply/delete`
+
+  ## Parameters
+  - `msg_data_id` (required): Message data ID from publish response
+  - `index` (required): Article index in multi-article (0-based)
+  - `user_comment_id` (required): Comment ID whose reply to delete
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Notes
+  - Only deletes the reply, not the comment itself
+  - Comment remains visible after reply deletion
+  - Reply is permanently deleted
+  - Can add a new reply after deletion
+
+  ## Warning
+  - This action is irreversible
+  - Reply content cannot be recovered
+
+  ## Requirements
+  - Comment must exist and have a reply
+  - Valid user_comment_id from list API
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("errcode is 0", function() {
+    expect(res.body.errcode).to.equal(0);
+  });
+}
+
+script:post-response {
+  if (res.body.errcode === 0) {
+    console.log('✓ Reply deleted successfully');
+    console.log('⚠ Comment itself remains visible');
+  } else {
+    console.error('✗ Failed to delete reply');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

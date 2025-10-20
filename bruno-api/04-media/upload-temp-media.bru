@@ -1,0 +1,107 @@
+meta {
+  name: Upload Temporary Media
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/media/upload?access_token={{accessToken}}&type=image
+  body: multipartForm
+  auth: none
+}
+
+params:query {
+  access_token: {{accessToken}}
+  type: image
+}
+
+body:multipart-form {
+  media: @file(/path/to/your/image.jpg)
+}
+
+docs {
+  # Upload Temporary Media
+
+  Upload temporary media files (valid for 3 days).
+
+  ## Endpoint
+  `POST /cgi-bin/media/upload`
+
+  ## Parameters
+  - `access_token` (required): Access token (query parameter)
+  - `type` (required): Media type
+    - `image`: Image (jpg/png, 2MB max)
+    - `voice`: Voice (amr/mp3, 2MB max)
+    - `video`: Video (mp4, 10MB max)
+    - `thumb`: Thumbnail (jpg, 64KB max)
+  - `media` (required): File binary data (multipart form)
+
+  ## Response
+  ```json
+  {
+    "type": "image",
+    "media_id": "MEDIA_ID",
+    "created_at": 1234567890
+  }
+  ```
+
+  ## Notes
+  - Valid for 3 days (72 hours)
+  - Use media_id in passive reply messages
+  - Cannot be used in template messages
+  - File size limits vary by type
+  - Supports: JPG, PNG, AMR, MP3, MP4
+
+  ## Usage
+  1. Replace `/path/to/your/image.jpg` with actual file path
+  2. Change `type` parameter based on media type
+  3. Upload and receive media_id
+  4. Use media_id in reply messages within 3 days
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Media ID returned", function() {
+    if (res.body.media_id) {
+      expect(res.body.media_id).to.be.a('string');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.media_id) {
+    console.log('✓ Media uploaded successfully');
+    console.log('Media ID:', res.body.media_id);
+    console.log('Type:', res.body.type);
+    console.log('Created at:', new Date(res.body.created_at * 1000).toISOString());
+    console.log('Valid for: 3 days');
+    bru.setVar('lastMediaId', res.body.media_id);
+  } else {
+    console.error('✗ Failed to upload media');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

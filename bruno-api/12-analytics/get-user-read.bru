@@ -1,0 +1,133 @@
+meta {
+  name: Get User Read
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/datacube/getuserread?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-03"
+  }
+}
+
+docs {
+  # Get User Read Statistics
+
+  Retrieve statistics about how users are reading articles (by source).
+
+  ## Endpoint
+  `POST /datacube/getuserread`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 3 days
+  - Date must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "user_source": 0,
+      "int_page_read_user": 500,
+      "int_page_read_count": 800,
+      "ori_page_read_user": 400,
+      "ori_page_read_count": 600,
+      "share_user": 100,
+      "share_count": 150,
+      "add_to_fav_user": 50,
+      "add_to_fav_count": 60
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Statistics date
+  - `user_source`: Reading source (0-6)
+  - `int_page_read_user`: Internal page unique readers
+  - `int_page_read_count`: Internal page total reads
+  - `ori_page_read_user`: Original page unique readers
+  - `ori_page_read_count`: Original page total reads
+  - `share_user`: Users who shared
+  - `share_count`: Total shares
+  - `add_to_fav_user`: Users who favorited
+  - `add_to_fav_count`: Total favorites
+
+  ## User Source Values
+  - 0: Session (chat with account)
+  - 1: Friends
+  - 2: Moments
+  - 3: Tencent Weibo
+  - 4: History messages
+  - 5: Other
+  - 6: Watch (看一看)
+
+  ## Notes
+  - Aggregates all articles by reading source
+  - Use to understand traffic sources
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have user_source", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('user_source');
+      expect(res.body.list[0]).to.have.property('int_page_read_count');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ User read statistics retrieved');
+    console.log('Records:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      console.log('Date:', res.body.list[0].ref_date);
+      console.log('Source:', res.body.list[0].user_source);
+      console.log('Read count:', res.body.list[0].int_page_read_count);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

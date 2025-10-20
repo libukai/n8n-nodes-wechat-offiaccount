@@ -1,0 +1,186 @@
+meta {
+  name: Generate QR Code
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/qrcode/create?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "expire_seconds": 604800,
+    "action_name": "QR_STR_SCENE",
+    "action_info": {
+      "scene": {
+        "scene_str": "test_scene_123"
+      }
+    }
+  }
+}
+
+docs {
+  # Generate Parametric QR Code
+
+  Create a QR code with scene parameters for user tracking and identification.
+
+  ## Endpoint
+  `POST /cgi-bin/qrcode/create`
+
+  ## QR Code Types
+
+  ### Temporary QR Code (Integer Scene)
+  ```json
+  {
+    "expire_seconds": 604800,
+    "action_name": "QR_SCENE",
+    "action_info": {
+      "scene": {
+        "scene_id": 123
+      }
+    }
+  }
+  ```
+  - `scene_id`: 1-100,000
+  - Max expiration: 2,592,000 seconds (30 days)
+
+  ### Temporary QR Code (String Scene)
+  ```json
+  {
+    "expire_seconds": 604800,
+    "action_name": "QR_STR_SCENE",
+    "action_info": {
+      "scene": {
+        "scene_str": "custom_string"
+      }
+    }
+  }
+  ```
+  - `scene_str`: 1-64 characters
+  - Max expiration: 2,592,000 seconds (30 days)
+
+  ### Permanent QR Code (Integer Scene)
+  ```json
+  {
+    "action_name": "QR_LIMIT_SCENE",
+    "action_info": {
+      "scene": {
+        "scene_id": 123
+      }
+    }
+  }
+  ```
+  - `scene_id`: 1-100,000
+  - Never expires
+  - Max 100,000 permanent QR codes per account
+
+  ### Permanent QR Code (String Scene)
+  ```json
+  {
+    "action_name": "QR_LIMIT_STR_SCENE",
+    "action_info": {
+      "scene": {
+        "scene_str": "custom_string"
+      }
+    }
+  }
+  ```
+  - `scene_str`: 1-64 characters
+  - Never expires
+  - Max 100,000 permanent QR codes per account
+
+  ## Response
+  ```json
+  {
+    "ticket": "gQH47joAAAAAAAAAASxodHRwOi8vd2VpeGluLnFxLmNvbS9xLzAyXzZOT...",
+    "expire_seconds": 604800,
+    "url": "http://weixin.qq.com/q/kZgfwMTm72WWPkovabbI"
+  }
+  ```
+
+  ## Getting QR Code Image
+  Use the ticket to get the actual QR code image:
+  ```
+  GET https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=TICKET
+  ```
+
+  ## Use Cases
+  - User acquisition tracking (track which QR code user scanned)
+  - Event registration (unique QR per event)
+  - Physical location check-ins
+  - Multi-channel marketing attribution
+  - Product authentication
+
+  ## Scan Events
+  When user scans the QR code:
+  - **Unsubscribed user**: Prompted to follow, then `subscribe` event with scene parameter
+  - **Already subscribed**: `SCAN` event with scene parameter
+
+  ## Notes
+  - Temporary codes: Higher quantity limit, auto-expire
+  - Permanent codes: Limited to 100,000, never expire
+  - Scene parameters passed in scan events for tracking
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Ticket exists", function() {
+    expect(res.body.ticket).to.exist;
+    expect(res.body.ticket).to.be.a('string');
+  });
+
+  test("URL exists", function() {
+    expect(res.body.url).to.exist;
+  });
+}
+
+script:post-response {
+  if (res.body.ticket) {
+    console.log('✓ QR code created successfully');
+    console.log('Ticket:', res.body.ticket);
+    console.log('Short URL:', res.body.url);
+
+    if (res.body.expire_seconds) {
+      console.log('Expires in:', res.body.expire_seconds, 'seconds');
+    } else {
+      console.log('Type: Permanent (never expires)');
+    }
+
+    // Construct QR code image URL
+    const qrcodeUrl = `https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=${encodeURIComponent(res.body.ticket)}`;
+    console.log('QR Code Image URL:', qrcodeUrl);
+
+    // Save ticket for later use
+    bru.setVar('lastQrTicket', res.body.ticket);
+  } else {
+    console.error('✗ Failed to create QR code');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

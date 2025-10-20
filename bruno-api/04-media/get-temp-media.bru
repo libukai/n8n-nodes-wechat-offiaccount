@@ -1,0 +1,66 @@
+meta {
+  name: Get Temporary Media
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/cgi-bin/media/get?access_token={{accessToken}}&media_id=MEDIA_ID_HERE
+  body: none
+  auth: none
+}
+
+params:query {
+  access_token: {{accessToken}}
+  media_id: MEDIA_ID_HERE
+}
+
+docs {
+  # Download Temporary Media
+
+  Download temporary media by media_id.
+
+  ## Endpoint
+  `GET /cgi-bin/media/get`
+
+  ## Parameters
+  - `access_token` (required): Access token
+  - `media_id` (required): Media ID obtained from upload
+
+  ## Response
+  - Binary file data (image/audio/video)
+  - Response headers include Content-Type and Content-Disposition
+
+  ## Notes
+  - Media must be within 3-day validity period
+  - Response is binary file, not JSON
+  - Save response body as file
+  - Check Content-Type header for file type
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

@@ -1,0 +1,80 @@
+meta {
+  name: Get All Templates
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/cgi-bin/template/get_all_private_template?access_token={{accessToken}}
+  body: none
+  auth: none
+}
+
+docs {
+  # Get All Private Templates
+
+  Retrieve all template messages added to your account.
+
+  ## Endpoint
+  `GET /cgi-bin/template/get_all_private_template`
+
+  ## Response
+  ```json
+  {
+    "template_list": [
+      {
+        "template_id": "abc123",
+        "title": "订单通知",
+        "primary_industry": "IT科技",
+        "deputy_industry": "互联网",
+        "content": "您的订单{{keyword1.DATA}}已发货...",
+        "example": "您的订单12345已发货..."
+      }
+    ]
+  }
+  ```
+
+  ## Notes
+  - Max 25 active templates per account
+  - Use template_id when sending template messages
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Template list exists", function() {
+    expect(res.body.template_list).to.be.an('array');
+  });
+}
+
+script:post-response {
+  if (res.body.template_list) {
+    console.log('✓ Found', res.body.template_list.length, 'templates');
+    res.body.template_list.forEach((tpl, idx) => {
+      console.log(`${idx + 1}. ${tpl.title} (ID: ${tpl.template_id})`);
+    });
+  }
+}

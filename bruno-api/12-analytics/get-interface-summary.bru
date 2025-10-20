@@ -1,0 +1,127 @@
+meta {
+  name: Get Interface Summary
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/datacube/getinterfacesummary?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-30"
+  }
+}
+
+docs {
+  # Get Interface Summary Statistics
+
+  Retrieve API call statistics for your official account.
+
+  ## Endpoint
+  `POST /datacube/getinterfacesummary`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 30 days
+  - Date must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "callback_count": 100,
+      "fail_count": 5,
+      "total_time_cost": 15000,
+      "max_time_cost": 500
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Statistics date
+  - `callback_count`: Total API calls
+  - `fail_count`: Failed API calls
+  - `total_time_cost`: Total response time (ms)
+  - `max_time_cost`: Maximum single response time (ms)
+
+  ## Calculated Metrics
+  - Success rate: `(callback_count - fail_count) / callback_count * 100%`
+  - Average response time: `total_time_cost / callback_count`
+
+  ## Notes
+  - Monitor API usage and performance
+  - Identify potential issues with high fail_count
+  - Track response time trends
+  - Use for capacity planning
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have callback_count", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('callback_count');
+      expect(res.body.list[0]).to.have.property('fail_count');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ Interface summary retrieved');
+    console.log('Records:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      const item = res.body.list[0];
+      console.log('Date:', item.ref_date);
+      console.log('Total calls:', item.callback_count);
+      console.log('Failed calls:', item.fail_count);
+      if (item.callback_count > 0) {
+        const successRate = ((item.callback_count - item.fail_count) / item.callback_count * 100).toFixed(2);
+        const avgTime = (item.total_time_cost / item.callback_count).toFixed(2);
+        console.log('Success rate:', successRate + '%');
+        console.log('Avg response time:', avgTime + 'ms');
+      }
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

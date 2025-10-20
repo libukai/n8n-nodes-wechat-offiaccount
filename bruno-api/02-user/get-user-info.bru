@@ -1,0 +1,123 @@
+meta {
+  name: Get User Info
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/cgi-bin/user/info?access_token={{accessToken}}&openid={{testOpenId}}&lang=zh_CN
+  body: none
+  auth: none
+}
+
+params:query {
+  access_token: {{accessToken}}
+  openid: {{testOpenId}}
+  lang: zh_CN
+}
+
+docs {
+  # Get User Basic Information
+
+  Retrieve basic information about a user, including their unionid (if authorized).
+
+  ## Endpoint
+  `GET /cgi-bin/user/info`
+
+  ## Parameters
+  - `access_token` (required): Access token
+  - `openid` (required): User's OpenID
+  - `lang` (optional): Language (zh_CN, zh_TW, en), default: zh_CN
+
+  ## Response Fields
+  - `subscribe`: Subscription status (0=unsubscribed, 1=subscribed)
+  - `openid`: User's OpenID (unique per Official Account)
+  - `unionid`: User's UnionID (unique across all apps, only if user authorized)
+  - `nickname`: User's nickname
+  - `sex`: Gender (0=unknown, 1=male, 2=female)
+  - `language`: User's language
+  - `city`: User's city
+  - `province`: User's province
+  - `country`: User's country
+  - `headimgurl`: User's avatar URL
+  - `subscribe_time`: Subscription timestamp
+  - `remark`: Custom remark set by admin
+  - `groupid`: User tag group ID
+  - `tagid_list`: Array of tag IDs assigned to user
+
+  ## UnionID Availability
+  The `unionid` field is only returned when:
+  1. User has followed the Official Account
+  2. User has authorized account access with their WeChat account
+  3. Official Account has enabled UnionID scope
+  4. Official Account is bound to WeChat Open Platform
+
+  ## Notes
+  - Unsubscribed users return limited information
+  - Subscribe status affects available fields
+  - For batch queries, use the batch get user info API
+
+  ## Error Codes
+  - `40001`: Invalid access_token
+  - `40003`: Invalid openid
+  - `40013`: Invalid AppID
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '...');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has no error or errcode is 0", function() {
+    expect(!res.body.errcode || res.body.errcode === 0).to.be.true;
+  });
+
+  test("User openid exists", function() {
+    expect(res.body.openid).to.exist;
+    expect(res.body.openid).to.be.a('string');
+  });
+
+  test("Subscribe status is valid", function() {
+    if (res.body.subscribe !== undefined) {
+      expect(res.body.subscribe).to.be.oneOf([0, 1]);
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.errcode && res.body.errcode !== 0) {
+    console.error('✗ Error:', res.body.errcode, res.body.errmsg);
+  } else {
+    console.log('✓ User info retrieved successfully');
+    console.log('OpenID:', res.body.openid);
+    console.log('Nickname:', res.body.nickname);
+    console.log('Subscribed:', res.body.subscribe === 1 ? 'Yes' : 'No');
+
+    if (res.body.unionid) {
+      console.log('UnionID:', res.body.unionid);
+    } else {
+      console.log('UnionID: Not available (user may not have authorized)');
+    }
+  }
+}

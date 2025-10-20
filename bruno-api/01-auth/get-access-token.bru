@@ -1,0 +1,120 @@
+meta {
+  name: Get Access Token
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/stable_token
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "grant_type": "client_credential",
+    "appid": "{{appId}}",
+    "secret": "{{appSecret}}"
+  }
+}
+
+script:post-response {
+  // Debug: Log the entire response
+  console.log('=== Response Debug ===');
+  console.log('Status:', res.status);
+  console.log('Headers:', JSON.stringify(res.headers, null, 2));
+  console.log('Body type:', typeof res.body);
+  console.log('Body:', JSON.stringify(res.body, null, 2));
+  console.log('Data:', res.data ? JSON.stringify(res.data, null, 2) : 'undefined');
+
+  // Try to get the response data
+  const responseData = res.body || res.data || {};
+
+  // Save the access token to environment for manual use
+  if (responseData.access_token) {
+    bru.setVar('accessToken', responseData.access_token);
+    console.log('✓ Access token saved to environment variable');
+    console.log('Token valid for:', responseData.expires_in, 'seconds');
+  } else if (responseData.errcode) {
+    console.error('✗ Failed to get access token');
+    console.error('Error code:', responseData.errcode);
+    console.error('Error message:', responseData.errmsg);
+  } else {
+    console.error('✗ Unexpected response format');
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  // Use res.data instead of res.body for Bruno
+  const responseData = res.data || res.body || {};
+
+  test("Response has no error code or errcode is 0", function() {
+    expect(responseData.errcode === undefined || responseData.errcode === 0).to.be.true;
+  });
+
+  test("Access token exists", function() {
+    expect(responseData.access_token).to.exist;
+    expect(responseData.access_token).to.be.a('string');
+    expect(responseData.access_token.length).to.be.above(0);
+  });
+
+  test("Expires in is 7200 seconds", function() {
+    expect(responseData.expires_in).to.equal(7200);
+  });
+}
+
+docs {
+  # Get Access Token
+
+  Obtain a stable access_token using AppID and AppSecret.
+
+  ## Endpoint
+  `POST /cgi-bin/stable_token`
+
+  ## Parameters
+  - `grant_type`: Must be "client_credential"
+  - `appid`: Your WeChat Official Account AppID
+  - `secret`: Your AppSecret
+
+  ## Response Fields
+  - `access_token`: The access token (valid for 7200 seconds)
+  - `expires_in`: Token expiration time in seconds (7200)
+  - `errcode`: Error code (0 = success)
+  - `errmsg`: Error message (if any)
+
+  ## Rate Limiting
+  - Can be called once per second
+  - Token valid for 2 hours (7200 seconds)
+  - Recommend caching token and reusing until expiration
+
+  ## Notes
+  - Most other requests in this collection automatically fetch a fresh token
+  - This endpoint is useful for testing credentials and manual token management
+  - The `stable_token` API is preferred over the legacy `token` API
+
+  ## Error Codes
+  - `40001`: Invalid AppSecret
+  - `40002`: Invalid grant_type
+  - `40013`: Invalid AppID
+  - `40164`: IP not whitelisted
+
+  ## Example Success Response
+  ```json
+  {
+    "access_token": "65_abc123xyz...",
+    "expires_in": 7200
+  }
+  ```
+
+  ## Example Error Response
+  ```json
+  {
+    "errcode": 40001,
+    "errmsg": "invalid credential, access_token is invalid or not latest hint: [1234567890]"
+  }
+  ```
+}

@@ -1,0 +1,105 @@
+meta {
+  name: Get Material Count
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/cgi-bin/material/get_materialcount?access_token={{accessToken}}
+  body: none
+  auth: none
+}
+
+docs {
+  # Get Material Count
+
+  Retrieve total count of permanent materials by type.
+
+  ## Endpoint
+  `GET /cgi-bin/material/get_materialcount`
+
+  ## Parameters
+  - `access_token` (required): Access token
+
+  ## Response
+  ```json
+  {
+    "voice_count": 10,
+    "video_count": 3,
+    "image_count": 250,
+    "news_count": 5
+  }
+  ```
+
+  ## Response Fields
+  - `voice_count`: Number of voice files
+  - `video_count`: Number of videos
+  - `image_count`: Number of images
+  - `news_count`: Number of news articles
+
+  ## Limits
+  - Image: Max 100,000
+  - Voice: Max 1,000
+  - Video: Max 1,000
+  - News: Max unlimited
+
+  ## Notes
+  - Returns counts for all material types
+  - Useful for quota management
+  - Does not count temporary materials
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has voice count", function() {
+    expect(res.body.voice_count).to.be.a('number');
+  });
+
+  test("Has video count", function() {
+    expect(res.body.video_count).to.be.a('number');
+  });
+
+  test("Has image count", function() {
+    expect(res.body.image_count).to.be.a('number');
+  });
+
+  test("Has news count", function() {
+    expect(res.body.news_count).to.be.a('number');
+  });
+}
+
+script:post-response {
+  console.log('✓ Material counts retrieved');
+  console.log('Images:', res.body.image_count, '/ 100,000');
+  console.log('Voice:', res.body.voice_count, '/ 1,000');
+  console.log('Video:', res.body.video_count, '/ 1,000');
+  console.log('News:', res.body.news_count);
+
+  const totalCount = res.body.voice_count + res.body.video_count +
+                     res.body.image_count + res.body.news_count;
+  console.log('Total materials:', totalCount);
+}

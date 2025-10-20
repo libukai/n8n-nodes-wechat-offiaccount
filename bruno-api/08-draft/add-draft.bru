@@ -1,0 +1,119 @@
+meta {
+  name: Add Draft
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/draft/add?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "articles": [
+      {
+        "title": "文章标题",
+        "author": "作者",
+        "digest": "文章摘要",
+        "content": "<p>文章内容HTML</p>",
+        "content_source_url": "https://example.com",
+        "thumb_media_id": "封面图片media_id",
+        "need_open_comment": 0,
+        "only_fans_can_comment": 0
+      }
+    ]
+  }
+}
+
+docs {
+  # Add Draft
+
+  Create a new draft article for later publishing.
+
+  ## Endpoint
+  `POST /cgi-bin/draft/add`
+
+  ## Parameters
+  - `articles` (required): Array of article objects
+
+  ## Article Object Fields
+  - `title` (required): Article title
+  - `author`: Author name
+  - `digest`: Article summary/description
+  - `content` (required): Article content in HTML
+  - `content_source_url`: Original article URL
+  - `thumb_media_id` (required): Cover image media_id
+  - `need_open_comment`: Enable comments (0=no, 1=yes)
+  - `only_fans_can_comment`: Only followers can comment (0=no, 1=yes)
+  - `show_cover_pic`: Show cover in article (0=no, 1=yes, default 0)
+
+  ## Response
+  ```json
+  {
+    "media_id": "MEDIA_ID",
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Multi-Article Draft
+  For multiple articles (max 8):
+  ```json
+  {
+    "articles": [
+      { "title": "Article 1", ... },
+      { "title": "Article 2", ... }
+    ]
+  }
+  ```
+
+  ## Notes
+  - Save media_id for publishing
+  - Can edit draft before publishing
+  - Max 8 articles per draft
+  - Cover image must be uploaded first
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Media ID returned", function() {
+    expect(res.body.media_id).to.exist;
+    expect(res.body.media_id).to.be.a('string');
+  });
+}
+
+script:post-response {
+  if (res.body.media_id) {
+    console.log('✓ Draft created successfully');
+    console.log('Draft media_id:', res.body.media_id);
+    bru.setVar('lastDraftMediaId', res.body.media_id);
+  } else {
+    console.error('✗ Failed to create draft');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

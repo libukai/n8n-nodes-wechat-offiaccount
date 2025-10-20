@@ -1,0 +1,84 @@
+meta {
+  name: Delete Published Article
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/freepublish/delete?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "article_id": "ARTICLE_ID_HERE",
+    "index": 0
+  }
+}
+
+docs {
+  # Delete Published Article
+
+  Remove a published article.
+
+  ## Endpoint
+  `POST /cgi-bin/freepublish/delete`
+
+  ## Parameters
+  - `article_id` (required): Published article ID
+  - `index` (optional): Article index in multi-article (0-based, default 0)
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Notes
+  - For single article: index = 0 or omit
+  - For multi-article: specify which article to delete
+  - Article becomes unavailable immediately
+  - Cannot be recovered after deletion
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("errcode is 0", function() {
+    expect(res.body.errcode).to.equal(0);
+  });
+}
+
+script:post-response {
+  if (res.body.errcode === 0) {
+    console.log('✓ Published article deleted');
+  } else {
+    console.error('✗ Failed to delete');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

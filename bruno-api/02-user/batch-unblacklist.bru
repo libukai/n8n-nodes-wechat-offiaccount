@@ -1,0 +1,73 @@
+meta {
+  name: Batch Unblacklist Users
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/tags/members/batchunblacklist?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "openid_list": ["{{testOpenId}}"]
+  }
+}
+
+docs {
+  # Batch Unblacklist Users
+
+  Remove multiple users from blacklist (unblock).
+
+  ## Endpoint
+  `POST /cgi-bin/tags/members/batchunblacklist`
+
+  ## Parameters
+  - `access_token` (required): Access token (query parameter)
+  - `openid_list` (required): Array of OpenIDs (max 20 per request)
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Notes
+  - Max 20 OpenIDs per request
+  - Restores user's ability to interact with the account
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("errcode is 0", function() {
+    expect(res.body.errcode).to.equal(0);
+  });
+}

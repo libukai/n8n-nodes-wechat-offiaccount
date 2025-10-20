@@ -1,0 +1,72 @@
+meta {
+  name: Delete Draft
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/draft/delete?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "media_id": "MEDIA_ID_HERE"
+  }
+}
+
+docs {
+  # Delete Draft
+
+  Delete a draft article by media_id.
+
+  ## Endpoint
+  `POST /cgi-bin/draft/delete`
+
+  ## Parameters
+  - `media_id` (required): Draft's media_id
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Notes
+  - Permanently deletes the draft
+  - Cannot be recovered
+  - Use carefully
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("errcode is 0", function() {
+    expect(res.body.errcode).to.equal(0);
+  });
+}

@@ -1,0 +1,102 @@
+meta {
+  name: Submit for Publishing
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/freepublish/submit?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "media_id": "DRAFT_MEDIA_ID_HERE"
+  }
+}
+
+docs {
+  # Submit Draft for Publishing
+
+  Publish a draft article immediately or schedule for later.
+
+  ## Endpoint
+  `POST /cgi-bin/freepublish/submit`
+
+  ## Parameters
+  - `media_id` (required): Draft's media_id (from draft/add)
+
+  ## Response
+  ```json
+  {
+    "publish_id": "PUBLISH_ID",
+    "msg_data_id": 123456,
+    "errcode": 0,
+    "errmsg": "ok"
+  }
+  ```
+
+  ## Response Fields
+  - `publish_id`: Publishing task ID (for checking status)
+  - `msg_data_id`: Message data ID (for statistics)
+
+  ## Publishing Status
+  Use `/cgi-bin/freepublish/get` with `publish_id` to check:
+  - `0`: Success
+  - `1`: Failed
+  - `2`: In progress
+
+  ## Notes
+  - Draft must exist and be valid
+  - Publishing is asynchronous
+  - Check status after submission
+  - Save publish_id for status tracking
+
+  ## Important
+  **Starting July 2025**: Personal accounts and unverified enterprise accounts will lose access to this API.
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has publish_id", function() {
+    if (res.body.publish_id) {
+      expect(res.body.publish_id).to.be.a('string');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.publish_id) {
+    console.log('✓ Submitted for publishing');
+    console.log('Publish ID:', res.body.publish_id);
+    console.log('Message Data ID:', res.body.msg_data_id);
+    bru.setVar('lastPublishId', res.body.publish_id);
+  } else {
+    console.error('✗ Failed to submit');
+    console.error('Error:', res.body.errcode, res.body.errmsg);
+  }
+}

@@ -1,0 +1,148 @@
+meta {
+  name: Send Template Message
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/cgi-bin/message/template/send?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "touser": "{{testOpenId}}",
+    "template_id": "your_template_id_here",
+    "url": "https://example.com",
+    "topcolor": "#FF0000",
+    "data": {
+      "first": {
+        "value": "您好,欢迎使用微信公众号!",
+        "color": "#173177"
+      },
+      "keyword1": {
+        "value": "测试内容",
+        "color": "#173177"
+      },
+      "keyword2": {
+        "value": "2024-01-01 12:00:00",
+        "color": "#173177"
+      },
+      "remark": {
+        "value": "感谢您的关注!",
+        "color": "#173177"
+      }
+    }
+  }
+}
+
+docs {
+  # Send Template Message
+
+  Send a template message to a specific user.
+
+  ## Endpoint
+  `POST /cgi-bin/message/template/send`
+
+  ## Parameters
+  - `touser` (required): Recipient's OpenID
+  - `template_id` (required): Template ID
+  - `url` (optional): Click destination URL
+  - `miniprogram` (optional): Mini-program to open
+  - `client_msg_id` (optional): Deduplication ID (max 64 chars)
+  - `data` (required): Template data (varies by template)
+    - Each field has `value` and optional `color`
+
+  ## Response
+  ```json
+  {
+    "errcode": 0,
+    "errmsg": "ok",
+    "msgid": 200228332
+  }
+  ```
+
+  ## Mini-Program Linking
+  ```json
+  {
+    "miniprogram": {
+      "appid": "xiaochengxuappid12345",
+      "pagepath": "index?foo=bar"
+    }
+  }
+  ```
+
+  ## Rate Limiting
+  - Service accounts: 100,000 messages/day (base)
+  - Increases with follower count:
+    - 100K+ followers: +100K messages/day
+    - 1M+ followers: +1M messages/day
+    - 10M+ followers: +10M messages/day
+
+  ## Notes
+  - Only for authenticated Service Accounts
+  - Max 25 active templates per account
+  - Template data fields must match your template configuration
+  - All template parameter values must end with `.DATA`
+  - Use for important service notifications only
+
+  ## Error Codes
+  - `40001`: Invalid access_token
+  - `40003`: Invalid openid
+  - `40037`: Invalid template_id
+  - `41028`: Unauthorized to use template messages
+  - `41029`: Invalid template_id
+  - `41030`: Template parameter value mismatch
+  - `45009`: API call limit exceeded
+}
+
+script:pre-request {
+  // Automatically fetch access token before request
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Message sent successfully", function() {
+    if (res.body.errcode !== undefined) {
+      expect(res.body.errcode).to.equal(0);
+    }
+  });
+
+  test("Message ID returned", function() {
+    if (res.body.msgid !== undefined) {
+      expect(res.body.msgid).to.be.a('number');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.errcode === 0) {
+    console.log('✓ Template message sent successfully');
+    console.log('Message ID:', res.body.msgid);
+  } else {
+    console.error('✗ Failed to send template message');
+    console.error('Error code:', res.body.errcode);
+    console.error('Error message:', res.body.errmsg);
+  }
+}

@@ -1,0 +1,121 @@
+meta {
+  name: Get User Share
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/datacube/getusershare?access_token={{accessToken}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "begin_date": "2024-01-01",
+    "end_date": "2024-01-07"
+  }
+}
+
+docs {
+  # Get User Share Statistics
+
+  Retrieve statistics about how users are sharing articles.
+
+  ## Endpoint
+  `POST /datacube/getusershare`
+
+  ## Parameters
+  - `begin_date` (required): Start date (format: YYYY-MM-DD)
+  - `end_date` (required): End date (format: YYYY-MM-DD)
+
+  ## Date Range Rules
+  - Maximum range: 7 days
+  - Date must be within last 90 days
+  - Format must be YYYY-MM-DD
+
+  ## Response
+  ```json
+  {
+    "list": [{
+      "ref_date": "2024-01-01",
+      "share_scene": 1,
+      "share_count": 100,
+      "share_user": 80
+    }]
+  }
+  ```
+
+  ## Response Fields
+  - `ref_date`: Statistics date
+  - `share_scene`: Share destination (1-5)
+  - `share_count`: Total shares
+  - `share_user`: Unique users who shared
+
+  ## Share Scene Values
+  - 1: Friends (one-to-one chat)
+  - 2: Moments
+  - 3: Tencent Weibo
+  - 4: QQ
+  - 5: QQ Zone
+
+  ## Notes
+  - Aggregates all articles by share destination
+  - Use to understand viral distribution channels
+  - Complements getuserread statistics
+}
+
+script:pre-request {
+  const axios = require('axios');
+  const baseUrl = bru.getEnvVar('baseUrl');
+  const appId = bru.getEnvVar('appId');
+  const appSecret = bru.getEnvVar('appSecret');
+
+  const tokenResponse = await axios.post(`${baseUrl}/cgi-bin/stable_token`, {
+    grant_type: 'client_credential',
+    appid: appId,
+    secret: appSecret
+  });
+
+  if (tokenResponse.data.access_token) {
+    bru.setVar('accessToken', tokenResponse.data.access_token);
+    console.log('✓ Access token obtained:', tokenResponse.data.access_token.substring(0, 20) + '....');
+  } else {
+    console.error('✗ Failed to get access token:', tokenResponse.data);
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Has list array", function() {
+    expect(res.body.list).to.be.an('array');
+  });
+
+  test("List items have share_scene", function() {
+    if (res.body.list && res.body.list.length > 0) {
+      expect(res.body.list[0]).to.have.property('share_scene');
+      expect(res.body.list[0]).to.have.property('share_count');
+    }
+  });
+}
+
+script:post-response {
+  if (res.body.list) {
+    console.log('✓ User share statistics retrieved');
+    console.log('Records:', res.body.list.length);
+    if (res.body.list.length > 0) {
+      console.log('Date:', res.body.list[0].ref_date);
+      console.log('Scene:', res.body.list[0].share_scene);
+      console.log('Shares:', res.body.list[0].share_count);
+      console.log('Users:', res.body.list[0].share_user);
+    }
+  } else {
+    console.error('✗ Failed to retrieve data');
+    if (res.body.errcode) {
+      console.error('Error:', res.body.errcode, res.body.errmsg);
+    }
+  }
+}

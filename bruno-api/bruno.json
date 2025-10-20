@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "WeChat Official Account API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
