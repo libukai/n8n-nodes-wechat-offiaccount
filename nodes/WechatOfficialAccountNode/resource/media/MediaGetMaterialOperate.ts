@@ -18,9 +18,9 @@ const MediaGetMaterialOperate: ResourceOperations = {
 		const mediaId = this.getNodeParameter('media_id', index) as string;
 
 		return RequestUtils.request.call(this, {
-			method: 'GET',
+			method: 'POST',
 			url: `/cgi-bin/material/get_material`,
-			qs: {
+			body: {
 				media_id: mediaId,
 			},
 		});

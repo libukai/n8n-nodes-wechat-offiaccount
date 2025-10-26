@@ -18,9 +18,9 @@ const MediaDelMaterialOperate: ResourceOperations = {
 		const mediaId = this.getNodeParameter('media_id', index) as string;
 
 		return RequestUtils.request.call(this, {
-			method: 'GET',
+			method: 'POST',
 			url: `/cgi-bin/material/del_material`,
-			qs: {
+			body: {
 				media_id: mediaId,
 			},
 		});
